@@ -1,4 +1,4 @@
-name: Frontend CI
+name: Frontend CI/CD
 
 on:
   push:
@@ -24,3 +24,51 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.ECS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.ECS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Prepare remote directory
+        run: |
+          ssh "${{ secrets.ECS_USER }}@${{ secrets.ECS_HOST }}" "rm -rf /home/deploy/server-web-new && mkdir -p /home/deploy/server-web-new"
+
+      - name: Upload frontend files
+        run: |
+          scp -r dist/* "${{ secrets.ECS_USER }}@${{ secrets.ECS_HOST }}:/home/deploy/server-web-new/"
+
+      - name: Deploy frontend
+        run: |
+          ssh "${{ secrets.ECS_USER }}@${{ secrets.ECS_HOST }}" << 'EOF'
+          set -e
+
+          sudo mkdir -p /var/www/server-web
+          sudo rm -rf /var/www/server-web/*
+          sudo cp -r /home/deploy/server-web-new/* /var/www/server-web/
+          rm -rf /home/deploy/server-web-new
+
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+          echo "Frontend deploy success"
+          EOF
