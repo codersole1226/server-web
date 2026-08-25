@@ -62,13 +62,9 @@ jobs:
           ssh "${{ secrets.ECS_USER }}@${{ secrets.ECS_HOST }}" << 'EOF'
           set -e
 
-          sudo mkdir -p /var/www/server-web
-          sudo rm -rf /var/www/server-web/*
-          sudo cp -r /home/deploy/server-web-new/* /var/www/server-web/
+          rm -rf /var/www/server-web/*
+          cp -r /home/deploy/server-web-new/* /var/www/server-web/
           rm -rf /home/deploy/server-web-new
-
-          sudo nginx -t
-          sudo systemctl reload nginx
 
           echo "Frontend deploy success"
           EOF
